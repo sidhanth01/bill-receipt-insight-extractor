@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+pytesseract
+Pillow
+PyPDF2
+pandas
+numpy
+matplotlib
+plotly
+streamlit
+python-multipart  # For file uploads in FastAPI
