@@ -10,3 +10,4 @@ matplotlib
 plotly
 streamlit
 python-multipart  # For file uploads in FastAPI
+requests # <--- Make sure this line is present
