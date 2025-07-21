@@ -8,6 +8,7 @@ A full-stack mini-application designed to streamline personal financial tracking
 ## 🔗 Live Application: https://bill-receipt-insight-extractor.streamlit.app/
 
 
+
 ## 🎯 Project Objective
 
 To develop a comprehensive solution that allows users to:
