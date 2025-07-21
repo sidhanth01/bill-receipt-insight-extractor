@@ -7,6 +7,7 @@ import plotly.express as px
 from datetime import date, datetime
 from typing import Dict, Any, List, Optional
 import urllib.parse # Added for URL encoding
+import os
 
 # --- Custom CSS for UI Styling ---
 st.markdown("""
@@ -145,7 +146,7 @@ h1 {
 # --- End Custom CSS ---
 
 # Define the backend API URL
-BACKEND_URL = "http://localhost:8000"
+BACKEND_URL = os.getenv("BACKEND_API_URL", "http://localhost:8000")
 
 st.set_page_config(layout="wide", page_title="Bill & Receipt Insight Extractor")
 
