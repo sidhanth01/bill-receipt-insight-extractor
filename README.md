@@ -4,6 +4,11 @@
 
 A full-stack mini-application designed to streamline personal financial tracking by automating the extraction of structured data from various receipt and bill formats. It transforms raw financial documents into actionable insights, providing users with a clear overview of their spending habits through interactive visualizations and robust data management.
 
+
+## 🔗 Live Application: https://bill-receipt-insight-extractor.streamlit.app/
+
+
+
 ## 🎯 Project Objective
 
 To develop a comprehensive solution that allows users to:
@@ -13,12 +18,6 @@ To develop a comprehensive solution that allows users to:
 * **Present** summarized insights and trends through an intuitive, interactive dashboard.
 * **Enable** data management features like manual correction, deletion, and export.
 
-## 📺 Demo
-
-*(Once you create a 2-3 minute video or GIF demonstrating your project, you can embed it here. For now, this is a placeholder.)*
-
-[![Watch the demo video](https://img.youtube.com/vi/YOUR_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
-*(Replace `YOUR_VIDEO_ID` with your actual YouTube video ID)*
 
 ## 🚀 Key Features
 
