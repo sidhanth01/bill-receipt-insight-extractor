@@ -21,32 +21,28 @@ class ReceiptParser:
     def __init__(self):
         # Define common regex patterns for extraction
         self.patterns = {
-            # Amount: Even more robust regex for amount extraction.
-            # Prioritizes common total keywords, handles various currency symbols,
-            # flexible spacing, and number formats (comma/dot for thousands/decimals).
-            "amount": r"(?:TOTAL\s*AMOUNT|TOTAL\s*DUE|AMOUNT\s*DUE|Balance\s*Due|Grand\s*Total|Net\s*Payable|Payable|Total|Amount|Sum|Bill)\s*[:=]?\s*[\$€£₹]?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)",
+            # Amount: Robust regex to capture the number.
+            # It now captures a digit, followed by any combination of digits, commas, or dots.
+            "amount": r"(?:TOTAL\s*AMOUNT|TOTAL\s*DUE|AMOUNT\s*DUE|Balance\s*Due|Grand\s*Total|Net\s*Payable|Payable|Total|Amount|Sum|Bill)\s*[:=]?\s*[\$€£₹]?\s*(\d[\d,.]*)",
             
             # Date: Matches various common date formats (DD-MM-YYYY, YYYY-MM-DD, Month DD, YYYY)
             "date": r"\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b|\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b",
             
             # Vendor: Improved patterns for vendor extraction
-            # 1. Look for common introductory phrases
-            # 2. Look for lines that seem like a company name (e.g., all caps, prominent)
-            # 3. Capture text after "To:" or "From:"
             "vendor_patterns": [
                 r"(?:Invoice from|Bill from|Purchased at|Sold by|Store|Shop|Vendor|From)\s*[:]?\s*([A-Za-z0-9\s.&'-]+)",
-                r"^(?!Date|Total|Amount|Invoice|Bill|Receipt|Items|Subtotal|Tax)\s*([A-Z0-9\s.&'-]+?)\s*$", # Capture prominent lines (e.g., all caps) at start of line
-                r"To:\s*([A-Za-z0-9\s.&'-]+)", # For "To:"
-                r"From:\s*([A-Za-z0-9\s.&'-]+)", # For "From:"
-                r"^(?:\s*)\s*([A-Za-z0-9\s.&'-]+?)\s*$", # Generic capture of first non-empty line
+                r"^(?!Date|Total|Amount|Invoice|Bill|Receipt|Items|Subtotal|Tax)\s*([A-Z0-9\s.&'-]+?)\s*$",
+                r"To:\s*([A-Za-z0-9\s.&'-]+)",
+                r"From:\s*([A-Za-z0-9\s.&'-]+)",
+                r"^(?:\s*)\s*([A-Za-z0-9\s.&'-]+?)\s*$",
             ],
             
             # Category Keywords: Simple keyword mapping for categorization
             "category_keywords": {
-                "electronics": ["electronics", "tech", "gadget", "computer", "mobile", "device"], # Added Electronics category, placed higher
+                "electronics": ["electronics", "tech", "gadget", "computer", "mobile", "device"],
                 "groceries": ["supermarket", "mart", "grocery", "fresh", "food", "hyper", "provision"],
-                "utilities": ["electricity", "internet", "water", "gas", "power", "telecom", "broadband", "bill"], # Added "bill" as a keyword
-                "transport": ["fuel", "petrol", "cab", "taxi", "bus", "metro", "auto"], # Removed "travel" for less ambiguity
+                "utilities": ["electricity", "internet", "water", "gas", "power", "telecom", "broadband", "bill"],
+                "transport": ["fuel", "petrol", "cab", "taxi", "bus", "metro", "auto"],
                 "restaurant": ["restaurant", "cafe", "diner", "eatery", "hotel", "food", "dine"],
                 "pharmacy": ["pharmacy", "chemist", "medicine", "health", "drug"],
                 "clothing": ["fashion", "apparel", "boutique", "garment", "wear"],
@@ -55,7 +51,7 @@ class ReceiptParser:
                 "education": ["school", "college", "university", "course", "tuition", "academy"],
                 "healthcare": ["hospital", "clinic", "doctor", "medical"],
                 "personal care": ["salon", "spa", "barber", "beauty"],
-                "books": ["book", "bookstore", "library", "novel", "reading"] # Added Books category
+                "books": ["book", "bookstore", "library", "novel", "reading"]
             }
         }
 
@@ -63,10 +59,7 @@ class ReceiptParser:
         """Extracts text from an image using Tesseract OCR."""
         try:
             image = Image.open(io.BytesIO(image_bytes))
-            # Convert to grayscale for better OCR performance
-            image = image.convert('L')
-            # You can also try enhancing contrast or resizing for better OCR
-            # image = image.resize((image.width * 2, image.height * 2), Image.LANCZOS)
+            image = image.convert('L') # Grayscale for better OCR
             text = pytesseract.image_to_string(image)
             return text
         except Exception as e:
@@ -79,7 +72,7 @@ class ReceiptParser:
         try:
             reader = PdfReader(io.BytesIO(pdf_bytes))
             for page in reader.pages:
-                text += page.extract_text() or "" # extract_text() can return None
+                text += page.extract_text() or ""
             return text
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
@@ -94,72 +87,74 @@ class ReceiptParser:
             "category": "Uncategorized"
         }
 
-        # Normalize text for easier parsing (e.g., lowercase for keyword matching)
         normalized_text = text.lower().strip()
 
         # --- Extract Amount ---
-        # Try to find amount using the improved regex
         amount_match = re.search(self.patterns["amount"], text, re.IGNORECASE)
         if amount_match:
-            # Remove commas/dots used as thousands separators, keep only the last dot for decimals
             amount_str = amount_match.group(1)
-            # Handle cases like 1.234,56 (European) or 1,234.56 (US)
-            if ',' in amount_str and '.' in amount_str:
-                if amount_str.rfind(',') > amount_str.rfind('.'): # European style (comma is decimal)
-                    amount_str = amount_str.replace('.', '').replace(',', '.')
-                else: # US style (dot is decimal)
-                    amount_str = amount_str.replace(',', '')
-            else:
-                amount_str = amount_str.replace(',', '') # Remove commas if only commas
+            
+            # --- SIMPLIFIED AND MORE ROBUST CLEANING LOGIC FOR AMOUNT_STR ---
+            # Remove all characters that are NOT digits or a single dot (decimal separator).
+            # This handles both comma and dot as thousands separators by simply removing them.
+            # It then ensures only one decimal dot remains.
+
+            # First, remove all commas (common thousands separator)
+            cleaned_amount_str = amount_str.replace(',', '')
+            
+            # If there are multiple dots, assume all but the last are thousands separators
+            # (e.g., 1.234.567,89 -> 1234567.89)
+            if cleaned_amount_str.count('.') > 1:
+                parts = cleaned_amount_str.split('.')
+                # Join all parts except the last one (which is the decimal part)
+                cleaned_amount_str = ''.join(parts[:-1]) + '.' + parts[-1]
+            
+            # Final safeguard: remove any non-digit/non-dot characters that might remain
+            # This handles currency symbols that might have been captured inside the number string
+            cleaned_amount_str = re.sub(r'[^\d.]', '', cleaned_amount_str)
             
             try:
-                parsed_data["amount"] = float(amount_str)
+                parsed_data["amount"] = float(cleaned_amount_str)
             except ValueError:
                 pass # Keep as None if conversion fails
 
         # --- Extract Date ---
-        # Prioritize YYYY-MM-DD as it's unambiguous for datetime.strptime
         date_formats = [
-            "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", # YYYY-MM-DD
-            "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y", # DD-MM-YYYY
-            "%d-%m-%y", "%d/%m/%y", "%d.%m.%y", # DD-MM-YY (e.g., 25-07-24 for 2024)
-            "%b %d, %Y", "%B %d, %Y", # Mon DD, YYYY (e.g., Jul 19, 2025)
-            "%d %b %Y", "%d %B %Y" # DD Mon YYYY
+            "%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d",
+            "%d-%m-%Y", "%d/%m/%Y", "%d.%m.%Y",
+            "%d-%m-%y", "%d/%m/%y", "%d.%m.%y",
+            "%b %d, %Y", "%B %d, %Y",
+            "%d %b %Y", "%d %B %Y"
         ]
         date_match = re.search(self.patterns["date"], text, re.IGNORECASE)
         if date_match:
-            date_str = date_match.group(0) # Get the full matched string
+            date_str = date_match.group(0)
             for fmt in date_formats:
                 try:
-                    # Using datetime.strptime and then .date() to get just the date part
                     parsed_data["transaction_date"] = datetime.strptime(date_str, fmt).date()
-                    break # Found a valid date, stop trying formats
+                    break
                 except ValueError:
-                    continue # Try next format
+                    continue
         
         # --- Extract Vendor (Improved Logic) ---
-        # Try multiple vendor patterns sequentially
         for pattern in self.patterns["vendor_patterns"]:
             vendor_match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
             if vendor_match:
                 vendor_name = vendor_match.group(1).strip()
-                # Clean up common trailing characters or phrases from vendor name
                 vendor_name = re.sub(r'(?:invoice|bill|receipt|store|shop|vendor|from|at|date|total|amount|items)\s*[:]?\s*$', '', vendor_name, flags=re.IGNORECASE).strip()
-                # Remove any leading/trailing non-alphanumeric characters except spaces and common symbols
                 vendor_name = re.sub(r'^[^\w\s]+|[^\w\s]+$', '', vendor_name).strip()
-                if vendor_name: # Only assign if not empty after cleaning
-                    parsed_data["vendor"] = vendor_name.title() # Capitalize first letter of each word for consistency
-                    break # Found a vendor, stop trying other patterns
+                if vendor_name:
+                    parsed_data["vendor"] = vendor_name.title()
+                    break
 
         # Fallback: If no vendor found by patterns, try to get the first non-empty line
         if parsed_data["vendor"] == "Unknown":
             lines = [line.strip() for line in text.split('\n') if line.strip()]
             if lines:
-                # Attempt to pick the first line that doesn't look like a date or amount
                 for line in lines:
                     if not re.search(self.patterns["date"], line) and \
                        not re.search(self.patterns["amount"], line) and \
-                       len(line) > 5 and len(line) < 50: # Simple length heuristic
+                       len(line) > 5 and len(line) < 50:
                         parsed_data["vendor"] = line.title()
                         break
 
@@ -169,9 +164,9 @@ class ReceiptParser:
             for keyword in keywords:
                 if keyword in normalized_text:
                     parsed_data["category"] = category.capitalize()
-                    break # Found a category, no need to check other keywords for this category
+                    break
             if parsed_data["category"] != "Uncategorized":
-                break # Found a category, no need to check other categories
+                break
 
         return parsed_data
 
@@ -186,22 +181,20 @@ class ReceiptParser:
         elif file_extension == ".pdf":
             extracted_text = self._extract_text_from_pdf(file_bytes)
         elif file_extension == ".txt":
-            # Assuming UTF-8 encoding for text files
             try:
                 extracted_text = file_bytes.decode('utf-8')
             except UnicodeDecodeError:
-                # Fallback to a common encoding if UTF-8 fails
                 extracted_text = file_bytes.decode('latin-1', errors='ignore')
         else:
             raise ValueError(f"Unsupported file type: {file_extension}. Allowed: JPG, PNG, PDF, TXT.")
 
-        if not extracted_text.strip(): # Check if extracted text is empty or just whitespace
+        if not extracted_text.strip():
             raise ValueError("Could not extract any meaningful text from the provided file.")
 
         # --- Diagnostic Print ---
         print(f"\n--- Parser Diagnostic ---")
         print(f"File Extension: {file_extension}")
-        print(f"Extracted Text:\n{extracted_text[:500]}...") # Print first 500 chars
+        print(f"Extracted Text:\n{extracted_text[:500]}...")
         
         parsed_data = self._parse_text(extracted_text)
         print(f"Parsed Data: {parsed_data}")
@@ -210,13 +203,11 @@ class ReceiptParser:
         return parsed_data
 
 # Example Usage (for testing parser logic directly)
-# This block will ONLY run when parser.py is executed directly, not when imported.
 if __name__ == "__main__":
-    parser = ReceiptParser() # This line is now correctly inside the if __name__ == "__main__": block
+    parser = ReceiptParser()
 
     # --- Test with a dummy text file content ---
     print("\n--- Testing with TXT content (Global Supermart) ---")
-    # Changed from byte literal to regular string and then encode
     txt_content_gsm_str = """
     ----------------------------------------------------
                GLOBAL SUPERMART
@@ -241,7 +232,6 @@ if __name__ == "__main__":
     Visit us again!
     """
     try:
-        # Encode the string to bytes before passing to parse_file
         parsed_txt_gsm = parser.parse_file(txt_content_gsm_str.encode('utf-8'), ".txt")
         print(f"Parsed TXT (Global Supermart): {parsed_txt_gsm}")
     except ValueError as e:
