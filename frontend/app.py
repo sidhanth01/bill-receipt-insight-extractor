@@ -156,17 +156,27 @@ st.markdown("Upload your receipts and bills to extract data and gain financial i
 # --- Helper Functions for API Calls ---
 def upload_file_to_backend(uploaded_file):
     """Sends the uploaded file to the FastAPI backend."""
-    if uploaded_file is not None:
-        files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-        try:
-            response = requests.post(f"{BACKEND_URL}/upload-receipt/", files=files)
-            response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            st.error(f"Error uploading file: {e}")
-            if response is not None:
-                st.error(f"Backend response: {response.status_code} - {response.text}")
-            return None
+    if uploaded_file is None:
+        return None # No file uploaded
+
+    if BACKEND_URL == "http://localhost:8000":
+        st.error("Error: Backend URL is still set to localhost. Please ensure BACKEND_API_URL secret is correctly configured in Streamlit Cloud.")
+        return None
+
+    files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
+    response = None # Initialize response to None to prevent UnboundLocalError
+    try:
+        response = requests.post(f"{BACKEND_URL}/upload-receipt/", files=files)
+        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error uploading file to backend: {e}")
+        if response is not None:
+            st.error(f"Backend response status: {response.status_code}")
+            st.error(f"Backend response detail: {response.text}")
+        else:
+            st.error("Could not connect to the backend API. Check URL and network.")
+        return None
 
 def fetch_receipts(
     vendor: Optional[str] = None,
@@ -179,6 +189,10 @@ def fetch_receipts(
     limit: int = 500 # Ensure this matches backend limit
 ) -> Optional[List[Dict[str, Any]]]:
     """Fetches receipts from the backend with optional filters."""
+    if BACKEND_URL == "http://localhost:8000":
+        st.error("Error: Backend URL is still set to localhost. Please ensure BACKEND_API_URL secret is correctly configured in Streamlit Cloud.")
+        return None
+
     params = {
         "skip": skip,
         "limit": limit
@@ -190,6 +204,7 @@ def fetch_receipts(
     if max_amount is not None: params["max_amount"] = max_amount
     if category: params["category"] = category
 
+    response = None # Initialize response to None
     try:
         response = requests.get(f"{BACKEND_URL}/receipts/", params=params)
         response.raise_for_status()
@@ -197,7 +212,10 @@ def fetch_receipts(
     except requests.exceptions.RequestException as e:
         st.error(f"Error fetching receipts: {e}")
         if response is not None:
-            st.error(f"Backend response: {response.status_code} - {response.text}")
+            st.error(f"Backend response status: {response.status_code}")
+            st.error(f"Backend response detail: {response.text}")
+        else:
+            st.error("Could not connect to the backend API. Check URL and network.")
         return None
 
 def update_receipt_in_backend(receipt_id: int, update_data: Dict[str, Any]):
