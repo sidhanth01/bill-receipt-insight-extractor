@@ -159,9 +159,7 @@ def upload_file_to_backend(uploaded_file):
     if uploaded_file is None:
         return None # No file uploaded
 
-    if BACKEND_URL == "http://localhost:8000":
-        st.error("Error: Backend URL is still set to localhost. Please ensure BACKEND_API_URL secret is correctly configured in Streamlit Cloud.")
-        return None
+   
 
     files = {"file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
     response = None # Initialize response to None to prevent UnboundLocalError
@@ -189,9 +187,7 @@ def fetch_receipts(
     limit: int = 500 # Ensure this matches backend limit
 ) -> Optional[List[Dict[str, Any]]]:
     """Fetches receipts from the backend with optional filters."""
-    if BACKEND_URL == "http://localhost:8000":
-        st.error("Error: Backend URL is still set to localhost. Please ensure BACKEND_API_URL secret is correctly configured in Streamlit Cloud.")
-        return None
+    
 
     params = {
         "skip": skip,

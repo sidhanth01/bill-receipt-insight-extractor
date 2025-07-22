@@ -21,9 +21,10 @@ class ReceiptParser:
     def __init__(self):
         # Define common regex patterns for extraction
         self.patterns = {
-            # Amount: Looks for keywords like Total, Amount, etc., followed by optional currency
-            # and then a number (handles commas and decimals).
-            "amount": r"(?:Total|Amount|Balance Due|Grand Total|Net Payable|Payable|Sum)\s*[:]?\s*[\$€£₹]?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)",
+            # Amount: Even more robust regex for amount extraction.
+            # Prioritizes common total keywords, handles various currency symbols,
+            # flexible spacing, and number formats (comma/dot for thousands/decimals).
+            "amount": r"(?:TOTAL\s*AMOUNT|TOTAL\s*DUE|AMOUNT\s*DUE|Balance\s*Due|Grand\s*Total|Net\s*Payable|Payable|Total|Amount|Sum|Bill)\s*[:=]?\s*[\$€£₹]?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)",
             
             # Date: Matches various common date formats (DD-MM-YYYY, YYYY-MM-DD, Month DD, YYYY)
             "date": r"\b(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b|\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b|\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},?\s+\d{4}\b",
@@ -44,7 +45,7 @@ class ReceiptParser:
             "category_keywords": {
                 "electronics": ["electronics", "tech", "gadget", "computer", "mobile", "device"], # Added Electronics category, placed higher
                 "groceries": ["supermarket", "mart", "grocery", "fresh", "food", "hyper", "provision"],
-                "utilities": ["electricity", "internet", "water", "gas", "power", "telecom", "broadband"],
+                "utilities": ["electricity", "internet", "water", "gas", "power", "telecom", "broadband", "bill"], # Added "bill" as a keyword
                 "transport": ["fuel", "petrol", "cab", "taxi", "bus", "metro", "auto"], # Removed "travel" for less ambiguity
                 "restaurant": ["restaurant", "cafe", "diner", "eatery", "hotel", "food", "dine"],
                 "pharmacy": ["pharmacy", "chemist", "medicine", "health", "drug"],
@@ -97,10 +98,20 @@ class ReceiptParser:
         normalized_text = text.lower().strip()
 
         # --- Extract Amount ---
+        # Try to find amount using the improved regex
         amount_match = re.search(self.patterns["amount"], text, re.IGNORECASE)
         if amount_match:
-            # Remove commas if present (e.g., 1,234.56 -> 1234.56)
-            amount_str = amount_match.group(1).replace(',', '')
+            # Remove commas/dots used as thousands separators, keep only the last dot for decimals
+            amount_str = amount_match.group(1)
+            # Handle cases like 1.234,56 (European) or 1,234.56 (US)
+            if ',' in amount_str and '.' in amount_str:
+                if amount_str.rfind(',') > amount_str.rfind('.'): # European style (comma is decimal)
+                    amount_str = amount_str.replace('.', '').replace(',', '.')
+                else: # US style (dot is decimal)
+                    amount_str = amount_str.replace(',', '')
+            else:
+                amount_str = amount_str.replace(',', '') # Remove commas if only commas
+            
             try:
                 parsed_data["amount"] = float(amount_str)
             except ValueError:
@@ -187,7 +198,15 @@ class ReceiptParser:
         if not extracted_text.strip(): # Check if extracted text is empty or just whitespace
             raise ValueError("Could not extract any meaningful text from the provided file.")
 
+        # --- Diagnostic Print ---
+        print(f"\n--- Parser Diagnostic ---")
+        print(f"File Extension: {file_extension}")
+        print(f"Extracted Text:\n{extracted_text[:500]}...") # Print first 500 chars
+        
         parsed_data = self._parse_text(extracted_text)
+        print(f"Parsed Data: {parsed_data}")
+        print(f"--- End Diagnostic ---\n")
+
         return parsed_data
 
 # Example Usage (for testing parser logic directly)
@@ -277,6 +296,35 @@ if __name__ == "__main__":
         print(f"Parsed TXT (Tech Gadgets): {parsed_txt_tg}")
     except ValueError as e:
         print(f"Error parsing TXT (Tech Gadgets): {e}")
+
+    print("\n--- Testing with TXT content (Utility Bill) ---")
+    txt_content_utility_str = """
+    ----------------------------------------------------
+               POWERGRID ELECTRICITY BOARD
+    ----------------------------------------------------
+    Bill Date: 2025-07-25
+    Account No: 1234567890
+    Billing Period: 2025-06-01 to 2025-06-30
+
+    Previous Reading: 12345 kWh
+    Current Reading:  12545 kWh
+    Units Consumed:   200 kWh
+
+    Charges:
+    - Energy Charges: ₹ 1500.00
+    - Fixed Charges:  ₹ 100.00
+    - Surcharge:      ₹ 50.00
+
+    Total Amount Due: ₹ 1650.00
+    Due Date: 2025-08-10
+    ----------------------------------------------------
+    Thank you for your payment.
+    """
+    try:
+        parsed_txt_utility = parser.parse_file(txt_content_utility_str.encode('utf-8'), ".txt")
+        print(f"Parsed TXT (Utility Bill): {parsed_txt_utility}")
+    except ValueError as e:
+        print(f"Error parsing TXT (Utility Bill): {e}")
 
     print("\n--- Testing with TXT content (no amount/date/vendor keywords) ---")
     txt_content_no_data_str = """
